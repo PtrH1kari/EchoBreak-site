@@ -1,0 +1,266 @@
+" ~/.vimrc — Python + C on Linux (Fedora/RHEL), NO plugins, nothing to install.
+" Uses only built-in vim features + tools already on the machine
+" (gcc, python3; autopep8 / pyflakes / flake8 / clang-format / ctags / rg if present).
+" Same keys as the macOS config. Leader = Space.
+
+set nocompatible
+filetype plugin indent on
+if has('syntax') | syntax on | endif
+
+" ---------- General ----------
+set encoding=utf-8
+set number relativenumber cursorline
+set mouse=a
+if has('clipboard') | set clipboard=unnamedplus | endif   " needs vim with +clipboard (vimx)
+set hidden
+set updatetime=300
+set signcolumn=yes
+set scrolloff=5
+set laststatus=2 showcmd
+set ignorecase smartcase incsearch hlsearch
+set expandtab shiftwidth=4 tabstop=4 softtabstop=4 autoindent
+set backspace=indent,eol,start
+set splitright splitbelow
+set noswapfile
+set shortmess+=c
+set wildmenu wildmode=longest:full,full
+silent! set wildoptions=pum,fuzzy
+set wildignore+=*.o,*.a,*.so,*.pyc,*/.git/*,*/__pycache__/*,*/build/*,*/.venv/*
+
+if !isdirectory(expand('~/.vim/undo')) | call mkdir(expand('~/.vim/undo'), 'p') | endif
+set undofile undodir=~/.vim/undo//
+
+" ---------- Colors ----------
+if has('termguicolors') && $COLORTERM =~# 'truecolor\|24bit'
+  set termguicolors
+endif
+set background=dark
+try
+  colorscheme retrobox          " gruvbox-like, ships with vim 9
+catch
+  try | colorscheme habamax | catch | colorscheme desert | endtry
+endtry
+" show trailing spaces
+highlight link ExtraWhitespace Error
+autocmd BufWinEnter * match ExtraWhitespace /\s\+\%#\@<!$/
+
+" Statusline: file, flags, type, errors from last check, position
+function! StatusErrors() abort
+  let l:n = len(filter(getqflist(), 'v:val.valid'))
+  return l:n ? ' [' . l:n . ' issues] ' : ''
+endfunction
+set statusline=\ %f\ %m%r%=%{StatusErrors()}\ %y\ %l:%c\ %p%%\
+
+" ---------- Keys ----------
+let mapleader = ' '
+nnoremap <leader>w :w<CR>
+nnoremap <leader>q :q<CR>
+nnoremap <leader><space> :nohlsearch<CR>
+nnoremap <C-h> <C-w>h
+nnoremap <C-j> <C-w>j
+nnoremap <C-k> <C-w>k
+nnoremap <C-l> <C-w>l
+
+" Tabs
+nnoremap <leader>t :tabnew<CR>
+nnoremap <leader>x :tabclose<CR>
+nnoremap <Tab>   gt
+nnoremap <S-Tab> gT
+
+" ---------- File manager (netrw, built in) ----------
+let g:netrw_banner = 0
+let g:netrw_liststyle = 3        " tree view
+let g:netrw_browse_split = 4     " Enter opens file in the previous window
+let g:netrw_altv = 1
+let g:netrw_winsize = 25
+nnoremap <leader>e :Lexplore<CR>
+
+" ---------- Find files / buffers / grep (no fzf needed) ----------
+set path=.,**
+nnoremap <leader>p :find *
+nnoremap <leader>b :ls<CR>:b<Space>
+if executable('rg')
+  set grepprg=rg\ --vimgrep\ --smart-case
+  set grepformat=%f:%l:%c:%m
+else
+  set grepprg=grep\ -rnI\ --exclude-dir=.git\ --exclude-dir=build\ $*\ .
+endif
+command! -nargs=+ Grep execute 'silent grep! <args>' | redraw! | copen
+nnoremap <leader>/ :Grep<Space>
+nnoremap ]q :cnext<CR>
+nnoremap [q :cprev<CR>
+
+" ---------- Completion (built in) ----------
+" Tab: open/next suggestion; after . or -> uses omni completion
+set completeopt=menuone,noinsert,noselect
+silent! set completeopt+=popup
+set complete=.,w,b,u,i
+if exists('+autocomplete') | set autocomplete | endif   " newer vim: popup while typing
+
+function! s:Tab() abort
+  if pumvisible() | return "\<C-n>" | endif
+  let l:before = strpart(getline('.'), 0, col('.') - 1)
+  if l:before =~# '\(\.\|->\)\k*$' && !empty(&omnifunc)
+    return "\<C-x>\<C-o>"
+  elseif l:before =~# '\k$'
+    return "\<C-n>"
+  endif
+  return "\<Tab>"
+endfunction
+inoremap <expr> <Tab>   <SID>Tab()
+inoremap <expr> <S-Tab> pumvisible() ? "\<C-p>" : "\<S-Tab>"
+" Python omni completion: let it import the modules your file imports (os., sys., ...)
+let g:pythoncomplete_allow_import = 1
+inoremap <C-Space> <C-x><C-o>
+inoremap <C-@>     <C-x><C-o>
+
+" ---------- Auto-closing brackets and quotes ----------
+function! s:Next() abort
+  return getline('.')[col('.') - 1]
+endfunction
+function! s:Prev() abort
+  return col('.') > 1 ? getline('.')[col('.') - 2] : ''
+endfunction
+function! s:Close(ch) abort
+  return s:Next() ==# a:ch ? "\<Right>" : a:ch
+endfunction
+function! s:Quote(q) abort
+  if s:Next() ==# a:q | return "\<Right>" | endif
+  if s:Prev() =~# '\w' | return a:q | endif        " don't pair in it's
+  return a:q . a:q . "\<Left>"
+endfunction
+function! s:InPair(pairs) abort
+  return index(a:pairs, s:Prev() . s:Next()) >= 0
+endfunction
+function! s:BS() abort
+  return s:InPair(['()', '[]', '{}', '""', "''"]) ? "\<Del>\<BS>" : "\<BS>"
+endfunction
+function! s:CR() abort
+  if pumvisible() | return "\<C-y>" | endif
+  return s:InPair(['{}', '[]', '()']) ? "\<CR>\<Esc>O" : "\<CR>"
+endfunction
+inoremap ( ()<Left>
+inoremap [ []<Left>
+inoremap { {}<Left>
+inoremap <expr> ) <SID>Close(')')
+inoremap <expr> ] <SID>Close(']')
+inoremap <expr> } <SID>Close('}')
+inoremap <expr> " <SID>Quote('"')
+inoremap <expr> ' <SID>Quote("'")
+inoremap <expr> <BS> <SID>BS()
+inoremap <expr> <CR> <SID>CR()
+
+" ---------- Error check on save (gcc / pyflakes / flake8 / py_compile) ----------
+let g:check_on_save = 1
+nnoremap <leader>c :let g:check_on_save = !g:check_on_save<CR>:echo 'check on save: ' . (g:check_on_save ? 'ON' : 'OFF')<CR>
+
+function! s:Check() abort
+  if !g:check_on_save | return | endif
+  let [l:mp, l:efm] = [&l:makeprg, &l:errorformat]
+  if &filetype ==# 'c' || &filetype ==# 'cpp'
+    let l:cc = &filetype ==# 'c' ? 'gcc -std=c17' : 'g++ -std=c++20'
+    " project flags, one per line, e.g. -Iinclude (same file clangd uses)
+    let l:flags = findfile('compile_flags.txt', expand('%:p:h') . ';')
+    let &l:makeprg = l:cc . ' -fsyntax-only -Wall -Wextra'
+          \ . (empty(l:flags) ? '' : ' @' . shellescape(fnamemodify(l:flags, ':p')))
+          \ . ' %:S'
+    let &l:errorformat = &g:errorformat
+  elseif &filetype ==# 'python'
+    if executable('pyflakes') || executable('flake8')
+      let &l:makeprg = (executable('pyflakes') ? 'pyflakes' : 'flake8') . ' %:S'
+      let &l:errorformat = '%f:%l:%c: %m,%f:%l:%c %m,%f:%l: %m,%-G%.%#'
+    else
+      let &l:makeprg = 'python3 -m py_compile %:S'
+      let &l:errorformat = '%E  File "%f"\, line %l,%-C    %.%#,%Z%m,%-G%.%#'
+    endif
+  else
+    return
+  endif
+  silent make!
+  let [&l:makeprg, &l:errorformat] = [l:mp, l:efm]
+  redraw!
+  let l:win = winnr()
+  cwindow
+  if winnr() != l:win | wincmd p | endif
+endfunction
+
+" ---------- Formatting: autopep8 on save (Python), clang-format on demand (C) ----------
+let g:autopep8_on_save = 1
+let s:autopep8 = ''
+function! s:FindAutopep8() abort
+  if executable('autopep8')
+    let s:autopep8 = 'autopep8'
+  else
+    call system('python3 -c "import autopep8"')
+    let s:autopep8 = v:shell_error ? 'none' : 'python3 -m autopep8'
+  endif
+endfunction
+
+function! s:Filter(cmd) abort
+  let l:view = winsaveview()
+  let l:lines = getline(1, '$')
+  let l:out = systemlist(a:cmd, l:lines)
+  if v:shell_error == 0 && l:out != l:lines
+    call setline(1, l:out)
+    if line('$') > len(l:out)
+      silent execute (len(l:out) + 1) . ',$delete _'
+    endif
+  endif
+  call winrestview(l:view)
+endfunction
+
+function! s:Autopep8(force) abort
+  if !a:force && !g:autopep8_on_save | return | endif
+  if empty(s:autopep8) | call s:FindAutopep8() | endif
+  if s:autopep8 ==# 'none'
+    if a:force | echo 'autopep8 not found' | endif
+    return
+  endif
+  call s:Filter(s:autopep8 . ' -')
+endfunction
+
+function! s:Format() abort
+  if &filetype ==# 'python'
+    call s:Autopep8(1)
+  elseif executable('clang-format')
+    call s:Filter('clang-format --assume-filename=' . shellescape(expand('%:t')))
+  else
+    normal! gg=G``
+  endif
+endfunction
+nnoremap <leader>f :call <SID>Format()<CR>
+
+function! s:StripTrailing() abort
+  let l:view = winsaveview()
+  keeppatterns %s/\s\+$//e
+  call winrestview(l:view)
+endfunction
+
+" ---------- Per language ----------
+augroup lang
+  autocmd!
+  autocmd FileType python setlocal colorcolumn=89
+  autocmd FileType python if has('python3') | setlocal omnifunc=python3complete#Complete | endif
+  autocmd FileType c,cpp  setlocal colorcolumn=81 cindent omnifunc=ccomplete#Complete
+  autocmd FileType make   setlocal noexpandtab
+
+  autocmd BufWritePre  *.py call s:Autopep8(0)
+  autocmd BufWritePre  *.py,*.c,*.h,*.cpp,*.hpp call s:StripTrailing()
+  autocmd BufWritePost *.py,*.c,*.h,*.cpp,*.hpp call s:Check()
+  " :q / :wq on the last file also closes the error list, so vim exits
+  autocmd QuitPre * if &buftype !=# 'quickfix'
+        \ && len(filter(range(1, winnr('$')), 'getwinvar(v:val, "&buftype") !=# "quickfix"')) == 1
+        \ | cclose | endif
+
+  " Space r = save + run,  Space m = make
+  autocmd FileType python nnoremap <buffer> <leader>r :w<CR>:!python3 %:S<CR>
+  autocmd FileType c      nnoremap <buffer> <leader>r :w<CR>:!gcc -std=c17 -Wall -Wextra -g %:S -o %:p:r:S && %:p:r:S<CR>
+  autocmd FileType cpp    nnoremap <buffer> <leader>r :w<CR>:!g++ -std=c++20 -Wall -Wextra -g %:S -o %:p:r:S && %:p:r:S<CR>
+  autocmd FileType c,cpp,make nnoremap <buffer> <leader>m :w<CR>:make!<CR>:cwindow<CR>
+augroup END
+
+" Space T = build tags (go-to-definition with Ctrl-] ; C omni completion uses it)
+if executable('ctags')
+  nnoremap <leader>T :!ctags -R --exclude=.git --exclude=build .<CR><CR>:echo 'tags built'<CR>
+endif
+set tags=./tags;,tags
