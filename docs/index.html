@@ -133,12 +133,12 @@
 
         // CUBE
 
-        const BACKGROUND = "#101010"
-        const FOREGROUND = "#50FF50"
+        const BACKGROUND = "#121212"
+        const FOREGROUND = "#E33533"
         
         console.log(rast)
-        rast.width = 800
-        rast.height = 800
+        rast.width = 200
+        rast.height = 200
         const ctx = rast.getContext("2d")
         console.log(ctx)
         
@@ -190,15 +190,15 @@
         }
         
         const vs = [
-            {x:  0.25, y:  0.25, z:  0.25},
-            {x: -0.25, y:  0.25, z:  0.25},
-            {x: -0.25, y: -0.25, z:  0.25},
-            {x:  0.25, y: -0.25, z:  0.25},
+            {x:  0.3, y:  0.3, z:  0.3},
+            {x: -0.3, y:  0.3, z:  0.3},
+            {x: -0.3, y: -0.3, z:  0.3},
+            {x:  0.3, y: -0.3, z:  0.3},
         
-            {x:  0.25, y:  0.25, z: -0.25},
-            {x: -0.25, y:  0.25, z: -0.25},
-            {x: -0.25, y: -0.25, z: -0.25},
-            {x:  0.25, y: -0.25, z: -0.25},
+            {x:  0.3, y:  0.3, z: -0.3},
+            {x: -0.3, y:  0.3, z: -0.3},
+            {x: -0.3, y: -0.3, z: -0.3},
+            {x:  0.3, y: -0.3, z: -0.3},
         ]
         
         const fs = [
