@@ -43,13 +43,9 @@
         <h2>Главная</h2>
         <h3>Этот сайт был сделан исключительно в образовательных целях!</h3>
 
-        <!-- Terminal-style Interactive Prompt -->
-        <div id="terminal" class="terminal">
-            <div id="terminal-output" class="terminal-output"></div>
-            <div class="terminal-input-line">
-                <span class="prompt">> </span>
-                <input type="text" id="terminal-input" autocomplete="off" spellcheck="false">
-            </div>
+        <!-- CUBE -->
+        <div id="cube">
+            <canvas id="rast"></canvas>
         </div>
     </main>
 
@@ -135,122 +131,112 @@
         setInterval(updateCountdown, 1000);
         updateCountdown();
 
-        const terminalInput = document.getElementById('terminal-input');
-        const terminalOutput = document.getElementById('terminal-output');
+        // CUBE
 
-        function printLine(text) {
-            const line = document.createElement('div');
-            line.textContent = text;
-            terminalOutput.appendChild(line);
+        const BACKGROUND = "#101010"
+        const FOREGROUND = "#50FF50"
+        
+        console.log(rast)
+        rast.width = 800
+        rast.height = 800
+        const ctx = rast.getContext("2d")
+        console.log(ctx)
+        
+        function clear() {
+            ctx.fillStyle = BACKGROUND
+            ctx.fillRect(0, 0, rast.width, rast.height)
         }
-
-        function printCommand(command) {
-            const line = document.createElement('div');
-            line.innerHTML = '<span class="prompt">&gt;</span> ' + command;
-            terminalOutput.appendChild(line);
+        
+        function point({x, y}) {
+            const s = 10
+            ctx.fillStyle = FOREGROUND
+            ctx.fillRect(x - s/2, y - s/2, s, s)
         }
-
-        terminalInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                const input = terminalInput.value.trim();
-                if (!input) return;
-
-                terminalInput.value = '';
-                printCommand(input);
-
-                const [cmd, ...args] = input.split(' ');
-                const argStr = args.join(' ').trim();
-
-                if (cmd === 'cd') {
-                    if (!argStr) {
-                        printLine('Использование: cd <страница>');
-                        printLine('Доступно: about, projects, fanfics, crypto, account');
-                        return;
-                    }
-
-                    const aliases = {
-                        'about': 'about.html',
-                        'projects': 'projects.html',
-                        'fanfics': 'fanfics.html',
-                        'crypto': 'crypto.html',
-                        'account': 'personal_account.html'
-                    };
-
-                    const target = aliases[argStr] || null;
-                    if (target) {
-                        printLine(`Переход на ${target}...`);
-                        setTimeout(() => window.location.href = target, 500);
-                    } else {
-                        printLine(`cd: неизвестная страница "${argStr}"`);
-                        printLine('Доступно: about, projects, fanfics, crypto, account');
-                    }
-
-                } else if (cmd === 'goto') {
-                    if (!argStr) {
-                        printLine('Использование: goto /путь/к/файлу.html');
-                        return;
-                    }
-
-                    let url = argStr;
-                    if (!url.startsWith('/')) {
-                        url = '/' + url;
-                    }
-
-                    try {
-                        const testUrl = new URL(url, window.location.origin);
-                        if (testUrl.origin !== window.location.origin) {
-                            throw new Error('Внешние ссылки запрещены');
-                        }
-                        printLine(`Переход на ${testUrl.pathname}...`);
-                        setTimeout(() => window.location.href = testUrl.pathname, 500);
-                    } catch (err) {
-                        printLine('goto: недопустимый путь (только внутренние страницы)');
-                    }
-
-                } else if (cmd === 'time') {
-                    const now = new Date().toLocaleString('ru-RU', {
-                        timeZone: 'Europe/Moscow',
-                        year: 'numeric',
-                        month: '2-digit',
-                        day: '2-digit',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                        second: '2-digit'
-                    });
-                    printLine(`Текущее время (МСК): ${now}`);
-                } else if (cmd === 'weather') {
-                    printLine('Загрузка погоды в Москве...');
-
-                    fetch('https://wttr.in/Moscow?format=4&lang=ru')
-                        .then(response => response.text())
-                        .then(data => {
-                            terminalOutput.lastChild.remove();
-                            printLine('Погода в Москве:');
-                            printLine(data.trim());
-                        })
-                        .catch(() => {
-                            terminalOutput.lastChild.remove();
-                            printLine('❌ Не удалось загрузить погоду.');
-                        });
-                } else if (cmd === 'help') {
-                    printLine('Команды:');
-                    printLine('  cd <страница>    — перейти на раздел (about, projects, и т.д.)');
-                    printLine('  goto /путь.html  — перейти по внутреннему пути');
-                    printLine('  time             — показать текущее время (МСК)');
-                    printLine('  weather          — показать погоду (МСК)');
-                    printLine('  clear            — очистить терминал');
-                } else if (cmd === 'clear') {
-                    terminalOutput.innerHTML = '';
-
-                } else {
-                    printLine(`Команда "${cmd}" не найдена. Введите "help".`);
-                }
-
-                terminalOutput.scrollTop = terminalOutput.scrollHeight;
+        
+        function line(p1, p2) {
+            ctx.strokeStyle = FOREGROUND;
+            ctx.beginPath();
+            ctx.moveTo(p1.x, p1.y);
+            ctx.lineTo(p2.x, p2.y);
+            ctx.stroke();
+        }
+        
+        function screen(p) {
+            return {
+                x: (p.x + 1)/2 * rast.width,
+                y: (1 - (p.y + 1)/2) * rast.height,
             }
-        });
-
-        terminalInput.focus();
+        }
+        
+        function project({x, y, z}) {
+            return {
+                x: x/z,
+                y: y/z,
+            }
+        }
+        
+        function translate_z({x, y, z}, dz) {
+            return {x, y, z: z + dz};
+        }
+        
+        function rotate_xz({x, y, z}, angle) {
+            const c = Math.cos(angle);
+            const s = Math.sin(angle);
+            return {
+                x: x*c-z*s,
+                y,
+                z: x*s+z*c,
+            };
+        }
+        
+        const vs = [
+            {x:  0.25, y:  0.25, z:  0.25},
+            {x: -0.25, y:  0.25, z:  0.25},
+            {x: -0.25, y: -0.25, z:  0.25},
+            {x:  0.25, y: -0.25, z:  0.25},
+        
+            {x:  0.25, y:  0.25, z: -0.25},
+            {x: -0.25, y:  0.25, z: -0.25},
+            {x: -0.25, y: -0.25, z: -0.25},
+            {x:  0.25, y: -0.25, z: -0.25},
+        ]
+        
+        const fs = [
+            [0, 1, 2, 3],
+            [4, 5, 6, 7],
+            [0, 4],
+            [1, 5],
+            [2, 6],
+            [3, 7],
+        ]
+        
+        const FPS = 60;
+        let dz = 1;
+        let angle = 0;
+        
+        function frame() {
+            const dt = 1/FPS;
+            // dz += 1 * dt
+            angle += Math.PI*dt;
+            clear()
+            //for (const v of vs) {
+            //    point(screen(project(translate_z(rotate_xz(v, angle), dz))))
+            //}
+            for (const f of fs) {
+                for (let i = 0; i < f.length; ++i) {
+                    const a = vs[f[i]];
+                    const b = vs[f[(i+1)%f.length]];
+                    line(
+                    screen(project(translate_z(rotate_xz(a, angle), dz))),
+                    screen(project(translate_z(rotate_xz(b, angle), dz)))
+                    );
+        
+                }
+            }
+            setTimeout(frame, 1000/FPS);
+        }
+        
+        setTimeout(frame, 1000/FPS);
     </script>
 
 </body>
